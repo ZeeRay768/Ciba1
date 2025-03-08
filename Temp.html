@@ -1,0 +1,230 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon RAP Temperature Controller</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #000;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        .background {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(45deg, #0f0f0f, #1a1a1a);
+            z-index: -1;
+        }
+
+        .thermostat {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .temperature-display {
+            font-size: 5em;
+            font-weight: 300;
+            color: #fff;
+            text-shadow: 0 0 20px currentColor;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .controls {
+            text-align: center;
+        }
+
+        .mode-indicator {
+            font-size: 1.4em;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: -40px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9em;
+            letter-spacing: 1px;
+        }
+
+        .particles {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .glow {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: inset 0 0 50px currentColor;
+            opacity: 0.3;
+            animation: pulse 4s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(0.95); opacity: 0.2; }
+            50% { transform: scale(1.05); opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+    <div class="background"></div>
+    <canvas class="particles"></canvas>
+    <div class="thermostat">
+        <div class="glow"></div>
+        <div class="temperature-display">0°C</div>
+        <div class="controls">
+            <div class="mode-indicator">Idle</div>
+        </div>
+        <div class="instructions">Scroll ke atas atau bawah</div>
+    </div>
+
+    <script>
+        const thermostat = document.querySelector('.thermostat');
+        const tempDisplay = document.querySelector('.temperature-display');
+        const modeIndicator = document.querySelector('.mode-indicator');
+        const glow = document.querySelector('.glow');
+        const canvas = document.querySelector('.particles');
+        const ctx = canvas.getContext('2d');
+
+        let currentTemp = 0;
+        let isAnimating = false;
+        const minTemp = -12;
+        const maxTemp = 60;
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.radius = Math.random() * 2;
+                this.alpha = Math.random() * 0.5;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                ctx.fill();
+            }
+        }
+
+        const particles = Array.from({ length: 200 }, () => new Particle());
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        function updateTemperature(delta) {
+            currentTemp += delta;
+            currentTemp = Math.max(minTemp, Math.min(currentTemp, maxTemp));
+            
+            tempDisplay.textContent = `${currentTemp.toFixed(1)}°C`;
+            
+            const hue = mapRange(currentTemp, minTemp, maxTemp, 200, 360);
+            const color = `hsl(${hue}, 80%, 50%)`;
+            
+            thermostat.style.boxShadow = `0 0 50px ${color}`;
+            tempDisplay.style.color = color;
+            glow.style.color = color;
+            
+            modeIndicator.textContent = delta > 0 ? 'Panas 🥵...' : 'Dingin 🥶...';
+        }
+
+        function mapRange(value, inMin, inMax, outMin, outMax) {
+            return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+        }
+
+        thermostat.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (isAnimating) return;
+            
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            updateTemperature(delta);
+            
+            isAnimating = true;
+            thermostat.style.transform = `scale(${delta > 0 ? 1.05 : 0.95})`;
+            
+            setTimeout(() => {
+                isAnimating = false;
+                thermostat.style.transform = 'scale(1)';
+                modeIndicator.textContent = 'Idle';
+            }, 200);
+        });
+
+        let touchStartY = 0;
+        thermostat.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        });
+
+        thermostat.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touchY = e.touches[0].clientY;
+            const delta = touchY - touchStartY;
+            
+            if (Math.abs(delta) > 5) {
+                updateTemperature(delta * -0.02);
+                touchStartY = touchY;
+            }
+        });
+    </script>
+</body>
+</html>
